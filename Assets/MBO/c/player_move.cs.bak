@@ -4,65 +4,266 @@ using UnityEngine;
 
 public class player_move : MonoBehaviour
 {
-	// 移動施加的力量
-    public float moveForce = 10f;
+    public float moveSpeed = 5f;   // 移動速度
+	public float deceleration = 10f; // 減速速度
+    private float moveInput;
+    public float jumpForce = 7f; // 跳躍力量
 
-    // 最大速度限制（避免越加越快）
-    public float maxSpeed = 5f;
-
-    // Rigidbody2D
     private Rigidbody2D rb;
+    public Animator animator;
 	
-	// 角色原始縮放
-    private Vector3 originalScale;
+	public Transform groundCheck; // 地板偵測
+    public float groundRadius = 0.2f; // 地板半徑
+    public LayerMask groundLayer; // 地板圖層
+    private bool isTouchingWallLeft;
+    private bool isTouchingWallRight;
+	private bool isGrounded; // 是否在地面
+	
+	public Transform grabPoint; // 拿取判定
+	public float grabRadius = 0.5f; // 拿取半徑
+	public LayerMask mantoLayer; // 拿取圖層
+	private Rigidbody2D grabbedObject; //拿取物
+	public float pullSpeed = 10f; // 吸附速度
+	public float throwForce = 5f; // 丟出去的力
 	
     // Start is called before the first frame update
     void Start()
     {
         // 取得 Rigidbody2D
         rb = GetComponent<Rigidbody2D>();
-		
-		// 記錄初始縮放
-        originalScale = transform.localScale;
     }
 
     // Update is called once per frame
     void Update()
     {
-        // 按 A → 向左加力 + 翻轉
-        if (Input.GetKey(KeyCode.A))
+		bool isMoving = false;
+		
+        // 向左
+        if (Input.GetKey(KeyCode.A) & !Input.GetKey(KeyCode.D) & !isTouchingWallLeft)
         {
-            rb.AddForce(Vector2.left * moveForce);
+			moveInput = -1;
+			isMoving = true;
 
-            // X = -1（面向左）
-            transform.localScale = new Vector3(
-                -Mathf.Abs(originalScale.x),
-                originalScale.y,
-                originalScale.z
-            );
+            // 翻轉
+            if (transform.localScale.x > 0)
+            {
+                transform.localScale = new Vector3(
+                    transform.localScale.x * -1,
+                    transform.localScale.y,
+                    transform.localScale.z
+                );
+            }
         }
-
-        // 按 D → 向右加力 + 還原
-        if (Input.GetKey(KeyCode.D))
+        // 向右
+        else if (Input.GetKey(KeyCode.D) & !Input.GetKey(KeyCode.A) & !isTouchingWallRight)
         {
-            rb.AddForce(Vector2.right * moveForce);
+			moveInput = 1;
+			isMoving = true;
 
-            // X = 1（面向右）
-            transform.localScale = new Vector3(
-                Mathf.Abs(originalScale.x),
-                originalScale.y,
-                originalScale.z
-            );
+            // 翻轉
+            if (transform.localScale.x < 0)
+            {
+                transform.localScale = new Vector3(
+                    transform.localScale.x * -1,
+                    transform.localScale.y,
+                    transform.localScale.z
+                );
+            }
         }
-
-        // 限制最大水平速度（避免滑到失控）
-        if (rb.velocity.x > maxSpeed)
+		else
+		{
+			moveInput = 0;
+		}
+		
+		// 地面偵測
+        isGrounded = Physics2D.OverlapCircle(
+            groundCheck.position, // 偵測中心
+            groundRadius, // 半徑
+            groundLayer // 地板層
+        );
+		
+		// 跳躍
+        if (Input.GetKeyDown(KeyCode.Space) && isGrounded)
         {
-            rb.velocity = new Vector2(maxSpeed, rb.velocity.y);
+			// 播放 jump（0.1秒）
+            StartCoroutine(JumpAnimation());
+			
+            // 向上給力
+            rb.velocity = new Vector2(rb.velocity.x, jumpForce);
         }
-        else if (rb.velocity.x < -maxSpeed)
+		
+		if (Input.GetKeyDown(KeyCode.K))
+		{
+		    if (grabbedObject == null)
+		    {
+		        TryGrab();
+		    }
+		    else
+		    {
+		        ThrowObject();
+		    }
+		}
+		
+		//控制動畫參數
+        if (animator != null)
         {
-            rb.velocity = new Vector2(-maxSpeed, rb.velocity.y);
+            animator.SetBool("walk", isMoving);
+			animator.SetBool("fall", !isGrounded);
         }
     }
+	
+	void FixedUpdate()
+	{
+	    // 固定速度移動
+        rb.velocity = new Vector2(moveInput * moveSpeed, rb.velocity.y);
+		
+		// ===== 吸附 =====
+	    if (grabbedObject != null)
+    	{
+       		// 平滑拉到 grabPoint
+	        Vector2 targetPos = grabPoint.position;
+	
+	        grabbedObject.position = Vector2.Lerp(
+	            grabbedObject.position,
+	            targetPos,
+	            pullSpeed * Time.fixedDeltaTime
+	        );
+	    }
+	}
+	
+	// 跳躍動畫 Coroutine
+    IEnumerator JumpAnimation()
+    {
+        animator.SetBool("jump", true);
+
+        yield return new WaitForSeconds(0.2f);
+
+        animator.SetBool("jump", false);
+    }
+	
+	// 看偵測範圍
+    private void OnDrawGizmosSelected()
+    {
+        if (groundCheck == null) return;
+
+        Gizmos.color = Color.red;
+        Gizmos.DrawWireSphere(groundCheck.position, groundRadius);
+		
+		if (grabPoint == null) return;
+
+    	Gizmos.color = Color.yellow;
+    	Gizmos.DrawWireSphere(grabPoint.position, grabRadius);
+    }
+	
+	private void OnCollisionStay2D(Collision2D collision)
+	{
+    	// 只處理牆壁
+    	if (collision.gameObject.layer != LayerMask.NameToLayer("Ground")) return;
+
+    	// 每幀先重置
+    	isTouchingWallLeft = false;
+    	isTouchingWallRight = false;
+
+    	// 檢查所有接觸點
+    	foreach (ContactPoint2D contact in collision.contacts)
+    	{
+    	    Vector2 normal = contact.normal;
+	
+    	    // normal.x > 0 → 代表牆在左邊（你撞到左牆）
+    	    if (normal.x > 0.5f)
+    	    {
+    	        isTouchingWallLeft = true;
+    	    }
+	
+    	    // normal.x < 0 → 代表牆在右邊
+    	    if (normal.x < -0.5f)
+    	    {
+    	        isTouchingWallRight = true;
+    	    }
+    	}
+	}
+	
+	private void OnCollisionExit2D(Collision2D collision)
+	{
+    	if (collision.gameObject.layer == LayerMask.NameToLayer("Ground"))
+    	{
+    	    isTouchingWallLeft = false;
+    	    isTouchingWallRight = false;
+    	}
+	}
+	
+	void TryGrab()
+	{
+	    // 找範圍內所有物件
+	    Collider2D[] hits = Physics2D.OverlapCircleAll(
+	        grabPoint.position,
+	        grabRadius,
+	        mantoLayer
+	    );
+	
+	    if (hits.Length == 0) return;
+	
+	    // 找最近的
+	    float minDist = Mathf.Infinity;
+	    Rigidbody2D closest = null;
+	
+	    foreach (Collider2D hit in hits)
+	    {
+	        float dist = Vector2.Distance(grabPoint.position, hit.transform.position);
+	
+	        if (dist < minDist)
+	        {
+	            minDist = dist;
+	            closest = hit.GetComponent<Rigidbody2D>();
+	        }
+	    }
+	
+	    // 設為抓取物件
+	    if (closest != null)
+	    {
+    	    grabbedObject = closest;
+			
+			// 關閉碰撞
+        	CircleCollider2D col = grabbedObject.GetComponent<CircleCollider2D>();
+        	if (col != null)
+        	{
+        	    col.enabled = false;
+        	}
+
+    	    // 關閉物理影響
+    	    grabbedObject.velocity = Vector2.zero;
+    	    grabbedObject.gravityScale = 0;
+
+    	    // 設為玩家子物件
+    	    grabbedObject.transform.SetParent(transform);
+
+    	    // 對齊到抓取點（避免位置歪掉）
+    	    grabbedObject.transform.position = grabPoint.position;
+	    }
+	}
+	
+	void ThrowObject()
+	{
+		// 解除父子關係
+    	grabbedObject.transform.SetParent(null);
+		
+	    // 恢復重力
+	    grabbedObject.gravityScale = 1;
+		
+		// 重新取得碰撞器
+		CircleCollider2D col = grabbedObject.GetComponent<CircleCollider2D>();
+
+		if (col != null)
+		{
+		    col.enabled = true; // 開啟碰撞
+		}
+	
+	    // 丟出去方向（依角色面向）
+	    float direction = transform.localScale.x;
+	
+	    grabbedObject.velocity = new Vector2(direction * throwForce, 2f);
+	
+	    // 清空
+	    grabbedObject = null;
+	}
 }

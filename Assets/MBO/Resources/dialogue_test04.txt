@@ -1,0 +1,8 @@
+[show]
+[ui_image,kc,Kocoa_normal,-480,0,default,spFadeIn_500]
+我的天哪！[w]
+是饅頭之王！[w]
+恭喜找到彩蛋！！！[w]
+[remove,kc,spFadeOut_500]
+[hide]
+[talk_end]

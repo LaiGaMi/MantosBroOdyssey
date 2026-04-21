@@ -26,9 +26,8 @@ public class ui_change_scenes : MonoBehaviour
     }
 	
 	// 按鈕呼叫
-    public void LoadScene()
+    public void ChangeScene()
     {
-        // 呼叫 TransitionManager
-        TransitionManager.Instance().Transition(sceneName, transitionID, loadDelay);
+        TransitionManager.Instance().Transition(sceneName, transitionSettings, loadDelay);
     }
 }

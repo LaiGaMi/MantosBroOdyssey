@@ -8,7 +8,7 @@ public class ui_change_scenes : MonoBehaviour
 	// 場景名稱
     public string sceneName;
 
-    // 改成拖這個（重點）
+    // 改成拖這個
     public TransitionSettings transitionSettings;
 
     public float loadDelay = 0f;

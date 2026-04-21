@@ -1,0 +1,8 @@
+[show]
+[ui_image,kc,Kocoa_normal,-480,0,default,spFadeIn_500]
+看呀！這個是饅頭！[w]
+他們不會傷害人，是友善的小可愛~[w]
+試著推動饅頭吧！[w]
+[remove,kc,spFadeOut_500]
+[hide]
+[talk_end]

@@ -1,0 +1,8 @@
+[show]
+[ui_image,kc,Kocoa_normal,-480,0,default,spFadeIn_500]
+我想到了！[w]
+只要貼著饅頭，按下K鍵就可以拿起饅頭哦！[w]
+再按一次就可以把饅頭丟出去~[w]
+[remove,kc,spFadeOut_500]
+[hide]
+[talk_end]

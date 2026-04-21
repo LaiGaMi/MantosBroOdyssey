@@ -1,0 +1,103 @@
+using System.Collections.Generic;
+using UnityEngine;
+using Flower;
+
+public class object_touch_talk : MonoBehaviour
+{
+    // ===== Flower 全場共用 =====
+    private static FlowerSystem fs;
+    private static bool commandRegistered = false;
+
+    // ===== 每個觸發器自己的狀態 =====
+    private bool triggered = false;
+
+    // 玩家控制
+    private player_move playerController;
+
+    // 每個 trigger 自己的對話
+    public string textFile;
+
+    // ⭐ 關鍵：記住「是哪個 trigger 被觸發」
+    private static object_touch_talk currentInstance;
+
+    void Start()
+    {
+        // ===== 初始化 Flower（只做一次）=====
+        if (fs == null)
+        {
+            fs = FlowerManager.Instance.CreateFlowerSystem("chat", false);
+            fs.SetupDialog();
+        }
+
+        // ===== 註冊 command（只做一次）=====
+        if (!commandRegistered)
+        {
+            fs.RegisterCommand("talk_end", TalkEnd);
+            commandRegistered = true;
+        }
+
+        // ===== 找玩家 =====
+        GameObject player = GameObject.FindGameObjectWithTag("Player");
+        if (player != null)
+        {
+            playerController = player.GetComponent<player_move>();
+        }
+    }
+
+    void Update()
+    {
+        if (!triggered) return;
+
+        if (fs != null && Input.GetKeyDown(KeyCode.Space))
+        {
+            fs.Next();
+        }
+    }
+
+    private void OnTriggerEnter2D(Collider2D collision)
+    {
+        if (triggered) return;
+
+        if (!collision.CompareTag("Player")) return;
+
+        triggered = true;
+
+        ExecuteAction();
+    }
+
+    void ExecuteAction()
+    {
+        // ===== 記住這個 trigger =====
+        currentInstance = this;
+
+        // ===== 鎖玩家 =====
+        if (playerController != null)
+        {
+            playerController.enabled = false;
+        }
+
+        // ===== 播放對話 =====
+        fs.ReadTextFromResource(textFile);
+    }
+
+    // =========================
+    // Flower command callback
+    // =========================
+    private void TalkEnd(List<string> _params)
+    {
+        // 防呆
+        if (currentInstance == null) return;
+
+        // 解鎖玩家
+        if (currentInstance.playerController != null)
+        {
+            currentInstance.playerController.enabled = true;
+        }
+
+        // 刪除正確的 trigger
+        Destroy(currentInstance.gameObject);
+
+        // 清空引用
+        currentInstance = null;
+    }
+}
